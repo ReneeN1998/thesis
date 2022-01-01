@@ -1,0 +1,196 @@
+---
+title: "Analyse"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(corrplot)
+library(Hmisc)
+library(VGAM)
+library(foreign)
+library(ggplot2)
+library(MASS)
+library(Hmisc)
+library(reshape2)
+library(jtools)
+library(interactions)
+library(lm.beta)
+library(dummies)
+library(dplyr)
+library(DescTools)
+library(ggplot2)
+library(plyr)
+library(nnet)
+library(tidyverse)
+library(ggpubr)
+library(rstatix)
+library(broom)
+library(tableHTML)
+library(janitor)
+library(emmeans)
+```
+
+
+
+```{r mutate}
+df = read.csv('analysisdata.csv')
+
+df$recent_review_summary <- as.factor(df$recent_review_summary)
+df$early_access <- as.factor(df$early_access)
+df$firstgenre <- factor(df$firstgenre)
+df$owners <- factor(df$owners)
+df$alltime_reviews_summary <- factor(df$alltime_reviews_summary)
+df$alltime_reviews_summary <- ordered(df$alltime_reviews_summary, c('Overwhelmingly Negative', 'Very Negative', 'Mostly Negative','Negative', 'Mixed', 'Positive', 'Mostly Positive', 'Very Positive', 'Overwhelmingly Positive'))
+table(df$alltime_reviews_summary)
+df$updates_monthly <- scale(df$updates_monthly, scale=FALSE)
+df$updates_monthly <- as.numeric(df$updates_monthly)
+df$upd_mon <-df$updates_monthly
+df$num_all <-df$number_alltime_reviews
+df$early <-df$early_access
+str(df)
+summary(df)
+```
+
+## Including Plots
+
+
+
+```{r b, echo=FALSE}
+df$alltime_reviews_summary <- revalue(df$alltime_reviews_summary,
+               c("Overwhelmingly Negative"="-4", 'Very Negative'='-3', 'Mostly Negative'="-2", 'Negative'="-1", 'Mixed'="0", 'Positive'="1", 'Mostly Positive'="2", 'Very Positive'="3", 'Overwhelmingly Positive'="4"))
+df$early <- revalue(df$early_access, c('no' = '0', 'yes' = '1'))
+df$owners <- revalue(df$owners, c('0-20,000'= '0', '20,000-50,000' = '1', "50,000-100,000" = '2', '100,000-200,000' = '3', 
+                                  "200,000-500,000" = '4', '500,000-1,000,000' ='5', '1,000,000-2,000,000' = '6','2,000,000-5,000,000' = '7',
+                                  '5,000,000-10,000,000' = '7','10,000,000-20,000,000'= '7','20,000,000-50,000,000'='7','50,000,000-100,000,000'= '7'))
+df$firstgenre <- revalue(df$firstgenre, c('action' = '0', 'adventure' = '1','free'= '2', 'indie' = '3', 'mmo'= '4', 'rpg'= '5', 'simulation' = '6', 'sports' = '7', 'strategy' = '8' ))
+
+
+# Only keep the variables we need in our df
+df1 <- subset(df, select = c(alltime_reviews_summary, early, upd_mon, price, firstgenre, owners, num_all))
+
+tabyl(df1, early, owners)
+tabyl(df1, early, alltime_reviews_summary)
+tabyl(df1, early, firstgenre)
+```
+
+```{r c, echo=FALSE}
+
+IV_DV <- lm(as.numeric(alltime_reviews_summary) ~ early, data = df1)
+summary(IV_DV)
+
+IV_DV_mod <- lm(as.numeric(alltime_reviews_summary) ~ early + upd_mon + early * upd_mon, data = df1)
+summary(IV_DV_mod)
+
+IV_DV_mod_control <- lm(as.numeric(alltime_reviews_summary) ~ early + upd_mon + early * upd_mon + price + firstgenre + owners + num_all, data = df1)
+summary(IV_DV_mod_control)
+
+```
+```{r d, echo=FALSE}
+
+## dummy code for correlation check 
+
+df1$genre_act <- ifelse(df1$firstgenre == '0', 1, 0)
+df1$genre_adv <- ifelse(df1$firstgenre == '1', 1, 0)
+df1$genre_fre <- ifelse(df1$firstgenre == '2', 1, 0)
+df1$genre_ind <- ifelse(df1$firstgenre == '3', 1, 0)
+df1$genre_mmo <- ifelse(df1$firstgenre == '4', 1, 0)
+df1$genre_rpg <- ifelse(df1$firstgenre == '5', 1, 0)
+df1$genre_sim <- ifelse(df1$firstgenre == '6', 1, 0)
+df1$genre_spo <- ifelse(df1$firstgenre == '7', 1, 0)
+df1$genre_str <- ifelse(df1$firstgenre == '8', 1, 0)
+
+df1$owners_0 <- ifelse(df1$owners == '0',1, 0)
+df1$owners_1 <- ifelse(df1$owners == '1',1, 0)
+df1$owners_2 <- ifelse(df1$owners == '2',1, 0)
+df1$owners_3 <- ifelse(df1$owners == '3',1, 0)
+df1$owners_4 <- ifelse(df1$owners == '4',1, 0)
+df1$owners_5 <- ifelse(df1$owners == '5',1, 0)
+df1$owners_6 <- ifelse(df1$owners == '6',1, 0)
+df1$owners_7 <- ifelse(df1$owners == '7',1, 0)
+
+df1$reviews_min4 <- ifelse(df1$alltime_reviews_summary == '-4', 1, 0)
+df1$reviews_min3 <- ifelse(df1$alltime_reviews_summary == '-3', 1, 0)
+df1$reviews_min2 <- ifelse(df1$alltime_reviews_summary == '-2', 1, 0)
+df1$reviews_min1 <- ifelse(df1$alltime_reviews_summary == '-1', 1, 0)
+df1$reviews_0 <- ifelse(df1$alltime_reviews_summary == '0', 1, 0)
+df1$reviews_1 <- ifelse(df1$alltime_reviews_summary == '1', 1, 0)
+df1$reviews_2 <- ifelse(df1$alltime_reviews_summary == '2', 1, 0)
+df1$reviews_3 <- ifelse(df1$alltime_reviews_summary == '3', 1, 0)
+df1$reviews_4 <- ifelse(df1$alltime_reviews_summary == '4', 1, 0)
+
+df1$early <- as.numeric(df1$early)
+ 
+
+```
+
+
+
+```{r e, echo=FALSE}
+# Selecting variables we need for correlation matrix
+df2 <- df1 %>%
+  select(early, upd_mon, price, num_all, genre_act, genre_adv, genre_fre, genre_ind, genre_mmo, genre_rpg, genre_sim, genre_spo, genre_str, owners_0, owners_1, owners_2, owners_3, owners_4, owners_5, owners_6, owners_7, reviews_min4, reviews_min3, reviews_min2, reviews_min1, reviews_0, reviews_1, reviews_2, reviews_3, reviews_4)
+
+# Function for correlation matrix
+corstars1 <- function(x){
+  # corstars1() computes a correlation matrix w/ significance stars
+  require(Hmisc)
+  x <- as.matrix(x)
+  R <- rcorr(x)$r
+  p <- rcorr(x)$P
+
+  ## define significance levels
+  mystars <- ifelse(p < .001, "*", ifelse(p < .01, "* ", ifelse(p < .05, " ", " ")))
+
+  ## correlation matrix w/ two digits
+  R <- format(round(cbind(rep(- 1.11, ncol(x)), R), 2))[, -1]
+
+  ## build a new matrix that includes the correlations w/ appropriate stars
+  Rnew <- matrix(paste(R, mystars, sep = ""), ncol = ncol(x))
+  diag(Rnew) <- paste(diag(R), " ", sep = "")
+  rownames(Rnew) <- colnames(x)
+  colnames(Rnew) <- paste(colnames(x), "", sep = "")
+
+  ## remove upper triangle
+  Rnew <- as.matrix(Rnew)
+  Rnew[upper.tri(Rnew, diag = TRUE)] <- ""
+  Rnew <- as.data.frame(Rnew)
+
+  ## remove last column and return the matrix (which is now a data frame)
+  Rnew <- cbind(Rnew[1:length(Rnew) - 1])
+  return(Rnew)
+} 
+
+(cortab <- corstars1(as.data.frame(df2)))
+
+```
+'Overwhelmingly Negative', 'Very Negative', 'Mostly Negative','Negative', 'Mixed', 'Positive', 'Mostly Positive', 'Very Positive', 'Overwhelmingly Positive'
+
+```{r z, echo=FALSE}
+### Plotting the interaction
+emtrends(IV_DV_mod_control, pairwise ~ early, var ='upd_mon')
+(mylist <- list(upd_mon=c(0,40),early=c("0","1")))
+(mylist <- list(upd_mon=seq(0,40, by=5),early=c("0","1")))
+emmip(IV_DV_mod_control, early ~upd_mon, at=mylist,CIs=TRUE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
